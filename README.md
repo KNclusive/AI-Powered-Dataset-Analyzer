@@ -22,7 +22,7 @@ The AI-Powered Dataset Analyzer is a web application that allows users to upload
 - **Deployment**: Docker, Docker Compose
 
 ## Project Structure
-
+```bash
 AI-Powered-Dataset-Analyzer/
 ├── backend/
 │ ├── app/
@@ -46,6 +46,7 @@ AI-Powered-Dataset-Analyzer/
 ├── docker-compose.yml
 ├── data/
 └── README.md
+```
 
 ## Setup Instructions
 
