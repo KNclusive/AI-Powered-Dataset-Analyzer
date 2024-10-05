@@ -22,30 +22,30 @@ The AI-Powered Dataset Analyzer is a web application that allows users to upload
 - **Deployment**: Docker, Docker Compose
 
 ## Project Structure
+
 AI-Powered-Dataset-Analyzer/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── routers/
-│   │   ├── models/
-│   │   └── services/
-│   ├── database.py
-│   ├── __init__.py
-│   ├── requirements.txt
-│   └── Dockerfile
+│ ├── app/
+│ │ ├── main.py
+│ │ ├── routers/
+│ │ ├── models/
+│ │ └── services/
+│ ├── database.py
+│ ├── **init**.py
+│ ├── requirements.txt
+│ └── Dockerfile
 ├── frontend/
-│   ├── lib/
-│   ├── main.dart
-│   ├── screens/
-│   ├── widgets/
-│   ├── models/
-│   └── pubspec.yaml
+│ ├── lib/
+│ ├── main.dart
+│ ├── screens/
+│ ├── widgets/
+│ ├── models/
+│ └── pubspec.yaml
 ├── Dockerfile
 ├── docs/
 ├── docker-compose.yml
 ├── data/
 └── README.md
-
 
 ## Setup Instructions
 
@@ -54,4 +54,28 @@ AI-Powered-Dataset-Analyzer/
 - [Deployment](#deployment)
 
 ## License
+
 MIT License
+
+## Backend Setup
+
+1. Navigate to the `backend` directory:
+
+   ```bash
+   cd backend
+
+   python3 -m venv venv
+   source venv/bin/activate
+
+   pip install -r requirements.txt
+   ```
+
+## Frontend Setup
+
+1. cd frontend
+2. npm install
+3. npm start
+
+## Deployment Setup
+
+Instructions on how to deploy the application using docker are provided in docs/DEPLOYMENT.md
