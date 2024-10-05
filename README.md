@@ -59,22 +59,36 @@ MIT License
 
 ## Backend Setup
 
-1. Navigate to the `backend` directory:
+1. Navigate to the `backend` directory.
 
    ```bash
    cd backend
+   ```
 
+2. Create virtual environment to install all dependencies.
+
+   ```bash
    python3 -m venv venv
    source venv/bin/activate
+   ```
 
+3. Install requirements.txt file in your virtual environment.
+
+   ```bash
    pip install -r requirements.txt
    ```
 
 ## Frontend Setup
 
-1. cd frontend
-2. npm install
-3. npm start
+1. Navigate to the `frontend` directory.
+   ```bash
+   cd frontend
+   ```
+2. Install nmp third-part dependencies and start.
+   ```bash
+   npm install
+   npm start
+   ```
 
 ## Deployment Setup
 
