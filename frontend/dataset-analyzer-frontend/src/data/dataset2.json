@@ -1,0 +1,6 @@
+[
+    { "id": 1, "product": "Widget A", "sales": 100, "profit": 30 },
+    { "id": 2, "product": "Widget B", "sales": 150, "profit": 50 },
+    { "id": 3, "product": "Widget C", "sales": 200, "profit": 70 }
+  ]
+  
