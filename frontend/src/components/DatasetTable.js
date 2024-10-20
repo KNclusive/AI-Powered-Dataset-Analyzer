@@ -12,6 +12,7 @@ import {
   TableSortLabel
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import Loader from './Loader';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   backgroundColor: '#ffffff',
@@ -66,7 +67,10 @@ const DatasetTable = ({ datasetName }) => {
     loadData();
   }, [datasetName]);
 
-  const headers = useMemo(() => dataset && dataset.length > 0 ? Object.keys(dataset[0]) : [], [dataset]);
+  const headers = useMemo(
+    () => (dataset && dataset.length > 0 ? Object.keys(dataset[0]) : []),
+    [dataset]
+  );
 
   const sortedData = useMemo(() => {
     if (!dataset || dataset.length === 0 || !orderBy) return dataset;
@@ -89,7 +93,7 @@ const DatasetTable = ({ datasetName }) => {
         <Typography variant="h6" sx={{ p: 1, backgroundColor: '#e0e0e0' }}>
           {datasetName}
         </Typography>
-        <Typography sx={{ p: 2 }}>Loading...</Typography>
+        <Loader />  {/* Use Loader instead of plain text */}
       </StyledPaper>
     );
   }
@@ -143,13 +147,15 @@ const DatasetTable = ({ datasetName }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedData.map((row, index) => (
-              <StyledTableRow key={index} hover>
-                {headers.map((header) => (
-                  <StyledTableCell key={`${index}-${header}`}>{row[header]}</StyledTableCell>
-                ))}
-              </StyledTableRow>
-            ))}
+          {sortedData.map((row, index) => (
+            <StyledTableRow key={index} hover>
+              {headers.map((header) => (
+                <StyledTableCell key={`${index}-${header}`}>
+                  {row[header]}
+                </StyledTableCell>
+              ))}
+            </StyledTableRow>
+          ))}
           </TableBody>
         </Table>
       </TableContainer>

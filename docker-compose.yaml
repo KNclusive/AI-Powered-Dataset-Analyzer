@@ -4,20 +4,44 @@ services:
   backend:
     build:
       context: ./backend
+    container_name: backend
     ports:
       - "8000:8000"
     networks:
       - app-network
-
+    secrets:
+      - langchain_api_key
+      - openai_api_key
+      - aws_access_key_id
+      - aws_secret_access_key
+      - tavily_api_key
+    environment:
+      - LANGCHAIN_TRACING_V2
+      - LANGCHAIN_ENDPOINT
+      - LANGCHAIN_PROJECT
+      - PYTHONDONTWRITEBYTECODE
   frontend:
     build:
       context: ./frontend
+    container_name: frontend
     ports:
-      - "80:80"
+      - "3000:80"
     networks:
       - app-network
     depends_on:
       - backend
+
+secrets:
+  langchain_api_key:
+    file: ./secrets/langchain_api_key
+  openai_api_key:
+    file: ./secrets/openai_api_key
+  aws_access_key_id:
+    file: ./secrets/aws_access_key_id
+  aws_secret_access_key:
+    file: ./secrets/aws_secret_access_key
+  tavily_api_key:
+    file: ./secrets/tavily_api_key
 
 networks:
   app-network:

@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 from langchain_openai import ChatOpenAI
 from langchain.output_parsers import PydanticOutputParser
 from langchain_core.output_parsers import JsonOutputParser
@@ -22,6 +19,7 @@ import json
 # Import FastAPI
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
 
@@ -47,11 +45,8 @@ class SchemaQueryResponse(BaseModel):
 def validate_response(response):
     try:
         final_response = SupervisorResponse.model_validate(response)
-        return_answer = final_response.final_response.output
-        if not isinstance(return_answer, str):
-            return return_answer.json() if return_answer else None #converting to string
-        else:
-            return return_answer
+        return_answer = final_response.final_response
+        return return_answer.json() if return_answer else None #converting to string
     except Exception as e:  
         return f"Error parsing final response: {e}"
 
@@ -190,6 +185,11 @@ class QueryRequest(BaseModel):
 
 app = FastAPI()
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+import os
+allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -247,16 +247,28 @@ def get_dataset(dataset_name: str):
             df = df2
         else:
             raise HTTPException(status_code=404, detail="Dataset not found")
-        
+
         # Reset index to convert multi-index to columns
         df_reset = df.reset_index()
-        # Convert DataFrame to JSON
-        data_json = df_reset.to_json(orient='records')
+
+        # Flatten column names if they are MultiIndex
+        if isinstance(df_reset.columns, pd.MultiIndex):
+            df_reset.columns = ['_'.join(col).strip().replace(' ', '_') for col in df_reset.columns.values]
+        else:
+            df_reset.columns = [col.strip().replace(' ', '_') for col in df_reset.columns]
+
+        # Convert DataFrame to JSON with appropriate orientation
+        data_json = df_reset.to_json(orient='records', date_format='iso', force_ascii=False)
+
         return {"data": json.loads(data_json)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Define the endpoint to handle the query
+# Modify the /query endpoint to handle exceptions
+from openai import RateLimitError, OpenAIError
+
+from fastapi.responses import JSONResponse
+
 @app.post("/query")
 def handle_query(request: QueryRequest):
     user_query = request.query
@@ -272,7 +284,30 @@ def handle_query(request: QueryRequest):
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
-    answer = graph.invoke(state, config=config)
-    final_message = answer["messages"][-1].content
+    try:
+        answer = graph.invoke(state, config=config)
+        final_message_content = answer["messages"][-1].content
 
-    return {"response": final_message}
+        # Try to parse the content as JSON
+        try:
+            final_message = json.loads(final_message_content)
+        except json.JSONDecodeError:
+            final_message = final_message_content
+        
+        return {"response": final_message}
+    
+    except RateLimitError as e:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please try again later."},
+        )
+    except OpenAIError as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"OpenAI API error: {str(e)}"},
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"An error occurred: {str(e)}"},
+        )

@@ -62,13 +62,13 @@ const DataComparisonChart = () => {
 
   // Combine data for comparison when keys are selected
   const combinedData =
-    xKey && yKey
-      ? data1.map((item, index) => ({
-          name: item[xKey] || `Item ${index + 1}`,
-          Dataset1: parseFloat(item[yKey]) || 0,
-          Dataset2: data2[index] ? parseFloat(data2[index][yKey]) || 0 : 0,
-        }))
-      : [];
+  xKey && yKey
+    ? data1.map((item, index) => ({
+        name: item[xKey] || `Item ${index + 1}`,
+        Dataset1: parseFloat(item[yKey]) || 0,
+        Dataset2: data2[index] ? parseFloat(data2[index][yKey]) || 0 : 0,
+      }))
+    : [];
 
   return (
     <div style={{ marginTop: 20 }}>
