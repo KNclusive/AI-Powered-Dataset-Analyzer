@@ -11,19 +11,15 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 from langchain.tools.render import render_text_description
 from langchain_experimental.tools import PythonAstREPLTool
-from src.Agent_prompts import get_schema_query_prompt, get_supervisor_prompt
-from src.Agent_tools import df1, df2, get_value_from_df, get_dataset_info_tool, get_dataset_indexing_structure
+from Agent_tools import df1, df2, get_dataset_info_tool, get_dataset_indexing_structure, get_value_from_df
+from Agent_prompts import get_schema_query_prompt, get_supervisor_prompt
 from typing import Dict, TypedDict, Annotated, Sequence, List
 import operator
+import json
 import functools
 import uuid
-import json
 
-# Import FastAPI
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+llm = ChatOpenAI(model="gpt-4o-mini")
 
 # Setup for response validation
 import pandas as pd
@@ -32,8 +28,8 @@ from typing import Optional, Literal
 
 class FinalResponse(BaseModel):
     original_user_query: str = Field(description="The user's original natural language query.")
-    constructed_pandas_query: str = Field(description="The single-line final panda's query constructed to answer user's query.")
-    output: str = Field(description="The result of the executed single-line panda's query.")
+    constructed_pandas_query: str = Field(description="The Final panda's query constructed to answer user's query.")
+    output: str = Field(description="The result of the executed panda's query.")
     charts: Optional[List[Dict]] = Field(default=None, description="List of charts generated, if any.")
 
 class SupervisorResponse(BaseModel):
@@ -47,11 +43,8 @@ class SchemaQueryResponse(BaseModel):
 def validate_response(response):
     try:
         final_response = SupervisorResponse.model_validate(response)
-        return_answer = final_response.final_response.output
-        if not isinstance(return_answer, str):
-            return return_answer.json() if return_answer else None #converting to string
-        else:
-            return return_answer
+        return_answer = final_response.final_response
+        return return_answer.json() if return_answer else None #converting to string
     except Exception as e:  
         return f"Error parsing final response: {e}"
 
@@ -86,19 +79,24 @@ supervisor_formatted_prompt = ChatPromptTemplate.from_messages([
 ]).partial(options=str(["FINISH", "EXECUTE_QUERY", "Schema_Query_Agent"]), members=", ".join(["Schema_Query_Agent"]), format_instructions=supervisor_parser.get_format_instructions())
 
 def supervisor(state: AgentState) -> AgentState:
+    print("inside Supervisor now.\n")
     supervisor_chain = supervisor_formatted_prompt | llm.with_structured_output(SupervisorResponse)
     response = supervisor_chain.invoke(state)
+    print("Supervisor Response is: \n", response)
     next_action = response.next_action
 
     if next_action == "Schema_Query_Agent":
+        print("Supervisor said next_action should be Schema Query agent")
         squeries = response.sub_queries
         state['sub_queries'] = squeries
         state['current_index'] = 0
         state['next'] = next_action
+        state['messages'].append(HumanMessage(content=f'Queries: {squeries}', name="Supervisor"))
     elif next_action == "EXECUTE_QUERY":
         state['next'] = next_action
     elif next_action == "FINISH":
         final_response = validate_response(response)
+        print("Supervisor says finish: \n", final_response)
         if final_response:
             state['messages'].append(HumanMessage(content=final_response, name="Supervisor"))
         else:
@@ -120,35 +118,44 @@ schema_query_formatted_prompt = ChatPromptTemplate.from_messages([
 ]).partial(tools_list=render_text_description(schema_query_tools), tool_names=", ".join(t.name for t in schema_query_tools), format_instructions=schema_query_parser.get_format_instructions())
 
 def schema_query(state, agent):
+    print("Now inside Schema Query Agent.\n")
     index = state.get('current_index', 0)
+    print("Current index is:\n", index)
     sub_queries = state.get('sub_queries', [])
     if not sub_queries:
         # No sub-queries to process
         state['messages'].append(HumanMessage(content=f"Did not recieve any sub-queries to construct panda's query", name='Schema_Query_Agent'))
         state['next'] = 'Supervisor'
         return state
-
+    
+    print("Sub queries are:\n", sub_queries)
     if index >= len(sub_queries):
+        print("Index greater than equal")
         state['messages'].append(HumanMessage(content=f"Current Index indicates all sub-queries have been processed.", name='Schema_Query_Agent'))
         # All sub-queries have been processed
         state['next'] = "Supervisor"
         return state
 
     query_in_play = sub_queries[index]
+    print("Query in play is:\n", query_in_play)
 
     agent_state = {'messages': [HumanMessage(content=query_in_play, name="Supervisor")]}
 
     result = agent.invoke(agent_state)
     agent_message = result["messages"][-1].content
+    print("Agent message printing:\n",agent_message)
     try:
         output = schema_query_parser.parse(agent_message)
+        print("Parsing schema query agents response: \n", output)
     except ValidationError as e:
         print(f"Validation error {e}")
         output = {'final_query': "print('Could not Construct Pandas Query!')"}
 
     query_cons = output.get("final_query")
+    print(f"The constructed Pandas query is:\n", query_cons)
     state['constructed_queries'].append(query_cons)
-
+    state['messages'].append(HumanMessage(content=f'Pandas query for {query_in_play} is:\n{query_cons}', name='Schema_Query_Agent'))
+    
     state['current_index'] = index + 1
     if state['current_index'] < len(sub_queries):
         # There are more sub-queries to process
@@ -164,17 +171,22 @@ schema_query_node = functools.partial(schema_query, agent=schema_query_agent)
 
 # Define the Execute Query node
 def execute_query(state: AgentState) -> AgentState:
+    print("Inside execute Query now.")
     queries_to_execute = state['constructed_queries']
+    print("Printing queries to execute inside Execute Query: \n", queries_to_execute)
 
     if not queries_to_execute:
+        print("Could not find queries to execute.")
         state['messages'].append(HumanMessage(content=f'No queries to execute', name='EXECUTE_QUERY'))
         return state
 
     for query in queries_to_execute:
+        print(f"Executing {query} now")
         try:
             res = python_repl_tool.run(query)
+            print("The result after query execution: \n", res)
         except Exception as e:
-            res = f"Error in {e} in  {query} execution"
+            res = f"Error in {query} execution"
 
         if isinstance(res, (pd.DataFrame, pd.Series)):
             state['results'].append(res.to_string())
@@ -183,20 +195,6 @@ def execute_query(state: AgentState) -> AgentState:
 
         state['messages'].append(HumanMessage(content=f'The pandas query {query} is executed; the result is {res}.', name='EXECUTE_QUERY'))
     return state
-
-# Define a Pydantic model for the request body
-class QueryRequest(BaseModel):
-    query: str
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Create the graph
 workflow = StateGraph(AgentState)
@@ -237,42 +235,21 @@ workflow.add_conditional_edges(
 
 # Compile the graph
 graph = workflow.compile(checkpointer=memory)
+# print(graph.get_graph().draw_ascii())
 
-@app.get("/datasets/{dataset_name}")
-def get_dataset(dataset_name: str):
-    try:
-        if dataset_name == 'df1':
-            df = df1
-        elif dataset_name == 'df2':
-            df = df2
-        else:
-            raise HTTPException(status_code=404, detail="Dataset not found")
-        
-        # Reset index to convert multi-index to columns
-        df_reset = df.reset_index()
-        # Convert DataFrame to JSON
-        data_json = df_reset.to_json(orient='records')
-        return {"data": json.loads(data_json)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Define the endpoint to handle the query
-@app.post("/query")
-def handle_query(request: QueryRequest):
-    user_query = request.query
-    state = {
-        "next": None,
-        "messages": [HumanMessage(content=user_query)],
-        "sub_queries": [],
-        "constructed_queries": [],
-        "current_index": 0,
-        "results": []
-    }
+# Example usage
+def main():
+    user_query = "What is the ratio of male population between sustainability survey and christmas survey?"
+    state = {"next": None, "messages": [HumanMessage(content=user_query)], "sub_queries": [], "constructed_queries": [], "current_index": 0, "results": []}
 
     thread_id = str(uuid.uuid4())
+
+    # Create a config dictionary with the thread_id
     config = {"configurable": {"thread_id": thread_id}}
-
     answer = graph.invoke(state, config=config)
-    final_message = answer["messages"][-1].content
+    print(answer)
 
-    return {"response": final_message}
+    return answer["messages"][-1].content
+
+if __name__ == "__main__":
+    main()

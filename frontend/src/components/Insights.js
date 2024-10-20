@@ -5,15 +5,14 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 
-const Insights = ({ data1, data2 }) => {
+const Insights = () => {
   const [query, setQuery] = useState('');
   const [insight, setInsight] = useState(null);
 
   const handleSubmit = async () => {
     try {
-      // Pass both datasets to the backend
-      const response = await getInsights(query, { data1, data2 });
-      setInsight(response.insight);
+      const response = await getInsights(query);
+      setInsight(response);
     } catch (error) {
       console.error('Failed to get insights:', error);
       setInsight('Failed to get insights. Please try again.');

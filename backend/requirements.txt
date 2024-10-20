@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pandas
+langchain-openai
+langchain
+langgraph
+langchain-experimental
+openpyxl
+python-dotenv
+boto3

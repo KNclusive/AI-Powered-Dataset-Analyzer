@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { fetchDataset } from '../services/api';
 import {
   Table,
   TableBody,
@@ -41,9 +42,29 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   },
 }));
 
-const DatasetTable = ({ datasetName, dataset }) => {
+const DatasetTable = ({ datasetName }) => {
+  const [dataset, setDataset] = useState([]);
   const [orderBy, setOrderBy] = useState('');
   const [order, setOrder] = useState('asc');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchDataset(datasetName);
+        setDataset(data);
+        setError(null); // Reset error state
+      } catch (error) {
+        console.error('Failed to load dataset:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [datasetName]);
 
   const headers = useMemo(() => dataset && dataset.length > 0 ? Object.keys(dataset[0]) : [], [dataset]);
 
@@ -61,6 +82,28 @@ const DatasetTable = ({ datasetName, dataset }) => {
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(property);
   };
+
+  if (loading) {
+    return (
+      <StyledPaper elevation={3}>
+        <Typography variant="h6" sx={{ p: 1, backgroundColor: '#e0e0e0' }}>
+          {datasetName}
+        </Typography>
+        <Typography sx={{ p: 2 }}>Loading...</Typography>
+      </StyledPaper>
+    );
+  }
+
+  if (error) {
+    return (
+      <StyledPaper elevation={3}>
+        <Typography variant="h6" sx={{ p: 1, backgroundColor: '#e0e0e0' }}>
+          {datasetName}
+        </Typography>
+        <Typography sx={{ p: 2 }}>Error: {error}</Typography>
+      </StyledPaper>
+    );
+  }
 
   if (!dataset || dataset.length === 0) {
     return (

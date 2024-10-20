@@ -1,50 +1,62 @@
 import pandas as pd
-from io import StringIO
-from pathlib import Path
+from io import StringIO, BytesIO
 from langchain.agents import tool
+import boto3
+import os
 
-fpath = Path(__file__).parent.parent.parent
+s3 = boto3.client('s3')
+bucket_name = 'ai-powered-dataset-analyzer'
 
-# Dataset loading and definition.
-df2 = pd.read_excel(fpath.joinpath('data','Dataset_1.xlsx'), header=[0,1], index_col=[0,1, 2]).fillna(0)
-df1 = pd.read_excel(fpath.joinpath('data','Dataset_2.xlsx'), header=[0,1], index_col=[0,1, 2]).fillna(0)
-df_list = [df1, df2]
-for df in df_list:
+def load_dataset_from_s3(file_key):
+    obj = s3.get_object(Bucket=bucket_name, Key=file_key)
+    data=obj['Body'].read()
+    df = pd.read_excel(BytesIO(data), header=[0,1], index_col=[0,1,2]).fillna(0)
     df.index.names = ['Row Main-Category', 'Row Sub-Category', 'Value Type']
     df.columns.names = ['Column Main-Category', 'Column Sub-Category']
+    return df
+
+# Load datasets
+df1 = load_dataset_from_s3('data/Dataset1.xlsx')
+df2 = load_dataset_from_s3('data/Dataset2.xlsx')
 
 @tool
 def get_dataset_indexing_structure(data: str) -> str:
     """
-    Provides detailed information about the dataset's indexing structure.
-
-    This function analyzes both row and column indices of the given DataFrame,
-    including their levels, unique values, and hierarchical relationships.
+    Provides a structured representation of the dataset's indexing structure in JSON format.
 
     Parameters:
     data (str): The name of the dataset to analyze ('df1' or 'df2').
 
     Returns:
-    str: A formatted string containing:
-        - Number of levels in row and column indices
-        - Names of each index level
-        - List of unique values for each level in both row and column indices
+    str: A JSON string containing:
+        - 'row_index_levels': List of row index level names.
+        - 'row_index_values': Dictionary mapping each row index level to its unique values.
+        - 'column_index_levels': List of column index level names.
+        - 'column_index_values': Dictionary mapping each column index level to its unique values.
     """
+    import json
     df = df1 if data == 'df1' else df2
-    def format_level_info(index, is_row=True):
-        index_type = "Row" if is_row else "Column"
-        level_info = f"{index_type} Index Levels: {index.names}\n"
-        level_info += f"Unique Values at Each {index_type} Level:\n"
-        for i, name in enumerate(index.names):
-            values = index.get_level_values(i).unique().tolist()
-            level_info += f"  - Level {i} ({name}): {values}\n"
-        return level_info
 
-    row_index_info = format_level_info(df.index)
-    column_index_info = format_level_info(df.columns, is_row=False)
+    row_index_levels = df.index.names
+    row_index_values = {
+        name: df.index.get_level_values(i).unique().tolist()
+        for i, name in enumerate(df.index.names)
+    }
 
-    index_info = f"Dataset: {data}\n{row_index_info}\n{column_index_info}"
-    return f"Index Information:\n{index_info}"
+    column_index_levels = df.columns.names
+    column_index_values = {
+        name: df.columns.get_level_values(i).unique().tolist()
+        for i, name in enumerate(df.columns.names)
+    }
+
+    index_info = {
+        'dataset': data,
+        'row_index_levels': row_index_levels,
+        'row_index_values': row_index_values,
+        'column_index_levels': column_index_levels,
+        'column_index_values': column_index_values,
+    }
+    return json.dumps(index_info, indent=2)
 
 @tool
 def get_dataset_info_tool(data: str) -> str:

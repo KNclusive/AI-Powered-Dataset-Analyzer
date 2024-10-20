@@ -1,6 +1,5 @@
-import React from 'react';
-import dataset1 from '../data/dataset1.json';
-import dataset2 from '../data/dataset2.json';
+import React, { useEffect, useState } from 'react';
+import { fetchDataset } from '../services/api';
 import KeyMetrics from '../components/KeyMetrics';
 import PreviousInsights from '../components/PreviousInsights';
 import Typography from '@mui/material/Typography';
@@ -8,8 +7,24 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 
 const Dashboard = () => {
-  const data1 = dataset1;
-  const data2 = dataset2;
+  const [data1, setData1] = useState([]);
+  const [data2, setData2] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [dataset1, dataset2] = await Promise.all([
+          fetchDataset('df1'),
+          fetchDataset('df2'),
+        ]);
+        setData1(dataset1);
+        setData2(dataset2);
+      } catch (error) {
+        console.error('Failed to load datasets:', error);
+      }
+    };
+    loadData();
+  }, []);
 
   const insights = [
     {
@@ -25,8 +40,15 @@ const Dashboard = () => {
   ];
 
 
-  const numericKeys1 = Object.keys(data1[0]).filter(key => typeof data1[0][key] === 'number');
-  const numericKeys2 = Object.keys(data2[0]).filter(key => typeof data2[0][key] === 'number');
+  const numericKeys1 =
+  data1.length > 0
+    ? Object.keys(data1[0]).filter((key) => typeof data1[0][key] === 'number')
+    : [];
+  const numericKeys2 =
+    data2.length > 0
+      ? Object.keys(data2[0]).filter((key) => typeof data2[0][key] === 'number')
+      : [];
+
 
   return (
     <Box sx={{ padding: 3 }}>

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchDataset } from '../services/api';
 import {
   BarChart,
   Bar,
@@ -15,19 +16,41 @@ import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 
-const DataComparisonChart = ({ data1, data2 }) => {
+const DataComparisonChart = () => {
+  const [data1, setData1] = useState([]);
+  const [data2, setData2] = useState([]);
   const [xKey, setXKey] = useState('');
   const [yKey, setYKey] = useState('');
-  
 
-  // Get common keys
-  const commonKeys = data1.length > 0 && data2.length > 0
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [dataset1, dataset2] = await Promise.all([
+          fetchDataset('df1'),
+          fetchDataset('df2'),
+        ]);
+        setData1(dataset1);
+        setData2(dataset2);
+      } catch (error) {
+        console.error('Failed to load datasets:', error);
+      }
+    };
+    loadData();
+  }, []);
+
+  const commonKeys =
+  data1.length > 0 && data2.length > 0
     ? Object.keys(data1[0]).filter((key) => key in data2[0])
     : [];
 
-  const numericKeys = commonKeys.filter(
-    (key) => !isNaN(parseFloat(data1[0][key])) && !isNaN(parseFloat(data2[0][key]))
-  );
+  const numericKeys =
+    data1.length > 0 && data2.length > 0
+      ? commonKeys.filter(
+          (key) =>
+            !isNaN(parseFloat(data1[0][key])) &&
+            !isNaN(parseFloat(data2[0][key]))
+        )
+      : [];
 
   const handleXKeyChange = (event) => {
     setXKey(event.target.value);
